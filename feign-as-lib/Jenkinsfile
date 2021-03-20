@@ -1,0 +1,76 @@
+appName = null //global scope
+appVersion = null //global scope
+def sonarCMD(prID) {
+  def result = "./gradlew sonar -Dsonar.host.url=$SONAR_HOST_URL -Dsonar.login=$SONAR_TOKEN -Dsonar.projectKey=$appName -Dsonar.projectVersion=$appVersion"
+  if(prID){
+    result += " -Dsonar.pullrequest.key=$ghprbPullId -Dsonar.pullrequest.branch=$ghprbSourceBranch -Dsonar.pullrequest.base=$ghprbTargetBranch"
+  }
+  return result
+}
+
+pipeline {
+  agent {
+    kubernetes {
+      yaml """
+        apiVersion: v1
+        kind: Pod
+        spec:
+          containers:
+          - name: build-jdk11
+            image: amithkumarg/build-jdk11:0.1.0
+            tty: true
+          imagePullSecrets:
+          - name: nexus-docker-creds
+      """
+      defaultContainer 'build-jdk11'
+    }
+  }
+  environment {
+    NEXUS_CREDS = credentials('NexusArtifactoryLogin')
+    NEXUS_USER = "$NEXUS_CREDS_USR"
+    NEXUS_PASSWORD = "$NEXUS_CREDS_PSW"
+    GRGIT_USER = credentials('GithubTokenLogin')
+    SONAR_TOKEN = credentials('SonarQubeLoginToken')
+  }
+  stages {
+    stage('Check') {
+      steps {
+        sh "./gradlew check -i"
+      }
+    }
+    stage('Versioning') {
+      when {
+        expression { params['SET_VERSIONING'] ==~ /(major|minor|patch)/ }
+      }
+      steps {
+        sh "./gradlew reckonTagPush -Preckon.scope=${params['SET_VERSIONING']} -Preckon.stage=final"
+      }
+    }
+    stage('Configure') {
+      steps{
+        script {
+          appName = sh(returnStdout: true, script: "./gradlew -q projectName").trim()
+          appVersion = sh(returnStdout: true, script: "./gradlew -q projectVersion").trim()
+        }
+      }
+    }
+    stage('Build') {
+      steps {
+        sh './gradlew build'
+      }
+    }
+    stage('Sonar'){
+      steps {
+        sh "${sonarCMD(env.ghprbPullId)}"
+      }
+    }
+    stage('Publish') {
+      when {
+        expression { params['SET_VERSIONING'] ==~ /(major|minor|patch)/ || params['PUBLISH']}
+      }
+      steps {
+        sh "./gradlew publish"
+      }
+    }
+  }
+}

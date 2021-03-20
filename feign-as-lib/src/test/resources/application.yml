@@ -1,0 +1,16 @@
+spring.security.oauth2.client:
+  registration:
+    fake-employee:
+      client-id: DUMMY_CLIENT_ID
+      client-secret: DUMMY_CLIENT_SECRET
+      authorization-grant-type: client_credentials
+      client-authentication-method: post
+  provider:
+    fake-employee:
+      token-uri: http://localhost:${wiremock.server.port}/oauth/token
+
+fake-employee:
+  endpoint: http://localhost:${wiremock.server.port}/employee
+
+logging.level.com.amithkumarg.samples.client.feign.service: DEBUG
+logging.level.root: INFO
