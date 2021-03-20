@@ -184,6 +184,7 @@ publishing {
 //      url version.toString().endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
       url 'https://maven.pkg.github.com/amithkumarg/springcloud-openfeign-springsecurity5-oauth2'
       credentials {
+        username 'token'
         password System.getenv('PERSONAL_GITHUB_TOKEN')
       }
     }
